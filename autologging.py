@@ -24,7 +24,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 __author__ = "Matthew Zipay (mattzATninthtestDOTinfo)"
-__version__ = "1.3.2"
+__version__ = "1.3.3"
 
 from functools import wraps
 from inspect import isclass, isgenerator, isroutine
@@ -63,7 +63,8 @@ __all__ = [
 ]
 
 #: A custom tracing log level, lower in severity than :attr:`logging.DEBUG`.
-TRACE = 1
+# change the level to above INFO to avoid DEBUG logs
+TRACE = 15
 logging.addLevelName(TRACE, "TRACE")
 
 
@@ -1027,7 +1028,6 @@ def _make_traceable_instancemethod(unbound_function, logger):
     """
     # functions have a __get__ method; they can act as descriptors
     proxy = _FunctionTracingProxy(unbound_function, logger)
-
     @wraps(unbound_function)
     def autologging_traced_instancemethod_delegator(self_, *args, **keywords):
         method = unbound_function.__get__(self_, self_.__class__)
@@ -1049,7 +1049,6 @@ def _make_traceable_instancemethod(unbound_function, logger):
                 unbound_function
 
     autologging_traced_instancemethod_delegator.__autologging_traced__ = True
-
     return autologging_traced_instancemethod_delegator
 
 
@@ -1183,27 +1182,37 @@ class _FunctionTracingProxy(object):
            ``yield`` and ``StopIteration`` tracing support.
 
         """
+        # self._logger.handle(logging.LogRecord(
+        #     self._logger.name,   # name
+        #     TRACE,               # level
+        #     self._func_filename, # pathname
+        #     self._func_lineno,   # lineno
+        #     "CALL *%r **%r",     # msg
+        #     (args, keywords),    # args
+        #     None,                # exc_info
+        #     func=function.__name__))
+
         self._logger.handle(logging.LogRecord(
             self._logger.name,   # name
             TRACE,               # level
             self._func_filename, # pathname
             self._func_lineno,   # lineno
-            "CALL *%r **%r",     # msg
-            (args, keywords),    # args
+            "CALL filename: %r, lineno: %r",     # msg
+            (self._func_filename, self._func_lineno), # print out filename and lineno
             None,                # exc_info
             func=function.__name__))
 
         value = function(*args, **keywords)
 
-        self._logger.handle(logging.LogRecord(
-            self._logger.name,   # name
-            TRACE,               # level
-            self._func_filename, # pathname
-            self._func_lineno,   # lineno
-            "RETURN %r",         # msg
-            (value,),            # args
-            None,                # exc_info
-            func=function.__name__))
+        # self._logger.handle(logging.LogRecord(
+        #     self._logger.name,   # name
+        #     TRACE,               # level
+        #     self._func_filename, # pathname
+        #     self._func_lineno,   # lineno
+        #     "RETURN %r",         # msg
+        #     (value,),            # args
+        #     None,                # exc_info
+        #     func=function.__name__))
 
         return (_GeneratorIteratorTracingProxy(function, value, self._logger)
                 if isgenerator(value) else value)
@@ -1296,10 +1305,10 @@ class _GeneratorIteratorTracingProxy(object):
         try:
             value = next(giter)
         except StopIteration:
-            self._trace("STOP %r", giter)
+            # self._trace("STOP %r", giter)
             raise
         else:
-            self._trace("YIELD %r %r", giter, value)
+            # self._trace("YIELD %r %r", giter, value)
             return value
 
     # PYVER: 2.7 compatibility
@@ -1311,7 +1320,7 @@ class _GeneratorIteratorTracingProxy(object):
 
         """
         giter = self._giter
-        self._trace("SEND %r %r", giter, value)
+        # self._trace("SEND %r %r", giter, value)
         return giter.send(value)
 
     def throw(self, exception):
@@ -1324,7 +1333,7 @@ class _GeneratorIteratorTracingProxy(object):
 
         """
         giter = self._giter
-        self._trace("THROW %r %r", giter, exception)
+        # self._trace("THROW %r %r", giter, exception)
         giter.throw(exception)
 
     def close(self):
@@ -1333,6 +1342,5 @@ class _GeneratorIteratorTracingProxy(object):
 
         """
         giter = self._giter
-        self._trace("CLOSE %r", giter)
+        # self._trace("CLOSE %r", giter)
         giter.close()
-
